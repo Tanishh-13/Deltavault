@@ -1,3 +1,11 @@
+
+# Build output
+build/
+
+# Compiled files
+*.o
+*.exe
+
 # VS Code local configuration
 .vscode/
 
