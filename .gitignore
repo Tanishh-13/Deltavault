@@ -1,0 +1,8 @@
+
+# Build output
+build/
+
+# Compiled files
+*.o
+*.exe
+
