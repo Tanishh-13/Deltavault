@@ -35,16 +35,27 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Command verification and argument checks for all 8 required commands
+    // Vault instance in current directory for standard commands
+    deltavault::Vault vault(".deltavault");
+
     if (command == "add") {
         if (argc < 3) {
             std::cerr << "Error: 'add' requires a <file> argument.\n";
             return 1;
         }
-        std::cout << "Command 'add' parsed successfully (orchestration pending Day 2).\n";
+        if (!vault.add(argv[2])) {
+            return 1;
+        }
         return 0;
     } else if (command == "list") {
-        std::cout << "Command 'list' parsed successfully (pending Day 2).\n";
+        auto files = vault.list();
+        if (files.empty()) {
+            std::cout << "Vault has no tracked files.\n";
+        } else {
+            for (const auto& file : files) {
+                std::cout << file << "\n";
+            }
+        }
         return 0;
     } else if (command == "versions") {
         if (argc < 3) {
