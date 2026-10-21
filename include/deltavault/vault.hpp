@@ -4,6 +4,10 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include "deltavault/chunker.hpp"
+#include "deltavault/hasher.hpp"
+#include "deltavault/object_store.hpp"
+#include "deltavault/manifest.hpp"
 
 namespace deltavault {
 
@@ -22,9 +26,11 @@ public:
     bool init();
     bool is_valid() const;
 
-    // Interface stubs for team integration (Days 2–5)
+    // Day 2: Core Orchestration
     bool add(const std::filesystem::path& filepath);
     std::vector<std::string> list() const;
+
+    // Days 3-5: Interface stubs
     std::vector<std::string> versions(const std::string& filename) const;
     bool restore(const std::string& filename, const std::string& version, const std::filesystem::path& output_path);
     bool verify(const std::string& filename, const std::string& version);
@@ -39,6 +45,8 @@ private:
     std::filesystem::path vault_path_;
     std::filesystem::path objects_dir_;
     std::filesystem::path manifests_dir_;
+
+    std::string generate_next_version(const std::string& filename) const;
 };
 
 } // namespace deltavault
