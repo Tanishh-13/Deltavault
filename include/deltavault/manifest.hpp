@@ -1,3 +1,8 @@
+// A manifest is a record of the chunks that make up a file, including their order and identifiers.
+
+#ifndef DELTAVAULT_MANIFEST_HPP
+#define DELTAVAULT_MANIFEST_HPP
+
 
 #pragma once
 
@@ -9,6 +14,17 @@
 namespace deltavault {
 
 struct Manifest {
+    std::string filename;
+    std::vector<std::string> chunk_hashes;
+};
+Manifest create_manifest(
+    const std::string& filename,
+    const std::vector<std::string>& chunk_hashes
+);
+
+} // namespace deltavault
+
+#endif
     std::string logical_filename;
     std::uint64_t version;
     std::vector<std::string> chunk_ids;

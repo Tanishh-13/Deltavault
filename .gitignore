@@ -6,18 +6,7 @@ build/
 *.o
 *.exe
 
-# VS Code local configuration
-.vscode/
-
-# Compiled binaries and object files
-*.exe
-*.o
-*.out
-deltavault
-test_*
-!tests/test_*.cpp
-
-# Local vault test directories and PDFs
-.deltavault/
+# Local vault data and PDFs
+/.deltavault/
 tmp_*/
 *.pdf
