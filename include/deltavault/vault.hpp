@@ -4,10 +4,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "deltavault/chunker.hpp"
-#include "deltavault/hasher.hpp"
-#include "deltavault/object_store.hpp"
-#include "deltavault/manifest.hpp"
+#include <cstdint>
 
 namespace deltavault {
 
@@ -26,13 +23,15 @@ public:
     bool init();
     bool is_valid() const;
 
-    // Day 2: Core Orchestration
+    // Day 2: Add and List
     bool add(const std::filesystem::path& filepath);
     std::vector<std::string> list() const;
 
-    // Days 3-5: Interface stubs
+    // Day 3: Versions and Restore
     std::vector<std::string> versions(const std::string& filename) const;
     bool restore(const std::string& filename, const std::string& version, const std::filesystem::path& output_path);
+
+    // Days 4-5: Interface stubs
     bool verify(const std::string& filename, const std::string& version);
     StatResult stats() const;
     bool gc();
@@ -46,7 +45,8 @@ private:
     std::filesystem::path objects_dir_;
     std::filesystem::path manifests_dir_;
 
-    std::string generate_next_version(const std::string& filename) const;
+    std::uint64_t get_next_version_number(const std::string& filename) const;
+    static std::uint64_t parse_version_string(const std::string& version_str);
 };
 
 } // namespace deltavault
