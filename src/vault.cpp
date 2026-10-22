@@ -1,6 +1,10 @@
 #include "deltavault/vault.hpp"
+#include "deltavault/chunker.hpp"
+#include "deltavault/hasher.hpp"
+#include "deltavault/object_store.hpp"
+#include "deltavault/manifest.hpp"
+
 #include <algorithm>
-#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <set>
@@ -45,18 +49,26 @@ bool Vault::is_valid() const {
            std::filesystem::is_directory(manifests_dir_);
 }
 
-std::string Vault::generate_next_version(const std::string& filename) const {
-    auto vers = versions(filename);
-    int max_ver = 0;
-    for (const auto& v : vers) {
-        if (!v.empty() && v[0] == 'v') {
-            try {
-                int num = std::stoi(v.substr(1));
-                max_ver = std::max(max_ver, num);
-            } catch (...) {}
-        }
+std::uint64_t Vault::parse_version_string(const std::string& version_str) {
+    if (version_str.empty()) return 0;
+    std::string num_str = (version_str[0] == 'v' || version_str[0] == 'V') 
+                          ? version_str.substr(1) 
+                          : version_str;
+    try {
+        return std::stoull(num_str);
+    } catch (...) {
+        return 0;
     }
-    return "v" + std::to_string(max_ver + 1);
+}
+
+std::uint64_t Vault::get_next_version_number(const std::string& filename) const {
+    auto vers = versions(filename);
+    std::uint64_t max_ver = 0;
+    for (const auto& v : vers) {
+        std::uint64_t num = parse_version_string(v);
+        max_ver = std::max(max_ver, num);
+    }
+    return max_ver + 1;
 }
 
 bool Vault::add(const std::filesystem::path& filepath) {
@@ -69,10 +81,10 @@ bool Vault::add(const std::filesystem::path& filepath) {
         return false;
     }
 
-    // 1. Read binary contents of the target file
+    // 1. Read binary contents of the input file
     std::ifstream file(filepath, std::ios::binary);
     if (!file) {
-        std::cerr << "Error: Could not open file for reading: " << filepath << "\n";
+        std::cerr << "Error: Could not open file: " << filepath << "\n";
         return false;
     }
     std::vector<std::uint8_t> data(
@@ -80,12 +92,12 @@ bool Vault::add(const std::filesystem::path& filepath) {
         std::istreambuf_iterator<char>()
     );
 
-    // 2. Split file into chunks using Chunker (Member A)
+    // 2. Split file into chunks using Member A's Chunker
     Chunker chunker;
     std::vector<Chunk> chunks = chunker.split(data);
 
-    // 3. Store missing chunks in ObjectStore (Member B)
-    ObjectStore store(vault_path_);
+    // 3. Hash with Member A's Hasher and write missing objects via Member B's ObjectStore
+    ObjectStore object_store(vault_path_);
     std::vector<std::string> chunk_ids;
     chunk_ids.reserve(chunks.size());
 
@@ -93,35 +105,25 @@ bool Vault::add(const std::filesystem::path& filepath) {
         std::string chunk_id = Hasher::sha256(chunk);
         chunk_ids.push_back(chunk_id);
 
-        if (!store.contains(chunk_id)) {
-            store.put(chunk_id, chunk);
+        if (!object_store.contains(chunk_id)) {
+            object_store.put(chunk_id, chunk);
         }
     }
 
-    // 4. Create and persist version metadata in Manifest (Member B)
-    std::string logical_filename = filepath.filename().string();
-    std::string version = generate_next_version(logical_filename);
+    // 4. Save manifest using Member B's ManifestStore
+    std::string logical_name = filepath.filename().string();
+    std::uint64_t next_ver = get_next_version_number(logical_name);
 
-    uint64_t now = static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()
-        ).count()
-    );
-
-    Manifest manifest{
-        logical_filename,
-        version,
-        now,
-        static_cast<std::uint64_t>(data.size()),
-        chunk_ids
-    };
-
-    if (!manifest.save(manifests_dir_)) {
-        std::cerr << "Error: Failed to save version manifest.\n";
+    Manifest manifest{logical_name, next_ver, chunk_ids};
+    try {
+        ManifestStore manifest_store(vault_path_);
+        manifest_store.save(manifest);
+    } catch (const std::exception& e) {
+        std::cerr << "Error saving manifest: " << e.what() << "\n";
         return false;
     }
 
-    std::cout << "Added '" << logical_filename << "' as " << version
+    std::cout << "Added '" << logical_name << "' as v" << next_ver
               << " (" << chunks.size() << " chunks)\n";
     return true;
 }
@@ -132,9 +134,16 @@ std::vector<std::string> Vault::list() const {
     }
 
     std::set<std::string> unique_files;
-    auto manifests = Manifest::load_all(manifests_dir_);
-    for (const auto& m : manifests) {
-        unique_files.insert(m.filename);
+    if (std::filesystem::exists(manifests_dir_)) {
+        for (const auto& entry : std::filesystem::directory_iterator(manifests_dir_)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".manifest") {
+                std::string fname = entry.path().stem().string(); // e.g. "file.txt.v1"
+                auto v_pos = fname.rfind(".v");
+                if (v_pos != std::string::npos) {
+                    unique_files.insert(fname.substr(0, v_pos));
+                }
+            }
+        }
     }
 
     return std::vector<std::string>(unique_files.begin(), unique_files.end());
@@ -145,23 +154,88 @@ std::vector<std::string> Vault::versions(const std::string& filename) const {
         return {};
     }
 
-    std::vector<std::string> ver_list;
-    auto manifests = Manifest::load_all(manifests_dir_);
-    for (const auto& m : manifests) {
-        if (m.filename == filename) {
-            ver_list.push_back(m.version);
+    std::vector<std::uint64_t> version_nums;
+    if (std::filesystem::exists(manifests_dir_)) {
+        for (const auto& entry : std::filesystem::directory_iterator(manifests_dir_)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".manifest") {
+                std::string stem = entry.path().stem().string(); // e.g. "file.txt.v1"
+                auto v_pos = stem.rfind(".v");
+                if (v_pos != std::string::npos) {
+                    std::string logical = stem.substr(0, v_pos);
+                    if (logical == filename) {
+                        try {
+                            std::uint64_t ver = std::stoull(stem.substr(v_pos + 2));
+                            version_nums.push_back(ver);
+                        } catch (...) {}
+                    }
+                }
+            }
         }
     }
-    std::sort(ver_list.begin(), ver_list.end());
-    return ver_list;
+
+    std::sort(version_nums.begin(), version_nums.end());
+
+    std::vector<std::string> result;
+    result.reserve(version_nums.size());
+    for (std::uint64_t v : version_nums) {
+        result.push_back("v" + std::to_string(v));
+    }
+    return result;
 }
 
-// Stubs for Days 3-5
 bool Vault::restore(const std::string& filename, const std::string& version, const std::filesystem::path& output_path) {
-    (void)filename; (void)version; (void)output_path;
-    return false;
+    if (!is_valid()) {
+        std::cerr << "Error: Vault is not initialized or invalid.\n";
+        return false;
+    }
+
+    std::uint64_t ver_num = parse_version_string(version);
+    if (ver_num == 0) {
+        std::cerr << "Error: Invalid version format '" << version << "'. Expected format like 'v1'.\n";
+        return false;
+    }
+
+    // 1. Load manifest using Member B's ManifestStore
+    Manifest manifest;
+    try {
+        ManifestStore manifest_store(vault_path_);
+        manifest = manifest_store.load(filename, ver_num);
+    } catch (const std::exception& e) {
+        std::cerr << "Error: Could not load manifest for '" << filename << "' (" << version << "): " << e.what() << "\n";
+        return false;
+    }
+
+    // 2. Ensure destination directory exists
+    if (output_path.has_parent_path()) {
+        std::filesystem::create_directories(output_path.parent_path());
+    }
+
+    // 3. Open output file and write retrieved chunks sequentially
+    std::ofstream out(output_path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        std::cerr << "Error: Cannot open destination path for writing: " << output_path << "\n";
+        return false;
+    }
+
+    ObjectStore object_store(vault_path_);
+    for (const auto& chunk_id : manifest.chunk_ids) {
+        try {
+            Bytes chunk_data = object_store.get(chunk_id);
+            if (!chunk_data.empty()) {
+                out.write(reinterpret_cast<const char*>(chunk_data.data()), static_cast<std::streamsize>(chunk_data.size()));
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Failed to retrieve chunk '" << chunk_id << "': " << e.what() << "\n";
+            return false;
+        }
+    }
+
+    out.close();
+    std::cout << "Successfully restored '" << filename << "' (" << version << ") to " << output_path << "\n";
+    return true;
 }
 
+// Days 4-5 Interface stubs
 bool Vault::verify(const std::string& filename, const std::string& version) {
     (void)filename; (void)version;
     return false;

@@ -35,7 +35,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Vault instance in current directory for standard commands
     deltavault::Vault vault(".deltavault");
 
     if (command == "add") {
@@ -43,10 +42,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "Error: 'add' requires a <file> argument.\n";
             return 1;
         }
-        if (!vault.add(argv[2])) {
-            return 1;
-        }
-        return 0;
+        return vault.add(argv[2]) ? 0 : 1;
     } else if (command == "list") {
         auto files = vault.list();
         if (files.empty()) {
@@ -62,15 +58,23 @@ int main(int argc, char* argv[]) {
             std::cerr << "Error: 'versions' requires a <file> argument.\n";
             return 1;
         }
-        std::cout << "Command 'versions' parsed successfully (pending Day 3).\n";
+        std::string filename = argv[2];
+        auto vers = vault.versions(filename);
+        if (vers.empty()) {
+            std::cout << "No versions found for file: " << filename << "\n";
+        } else {
+            std::cout << "Versions for '" << filename << "':\n";
+            for (const auto& v : vers) {
+                std::cout << "  " << v << "\n";
+            }
+        }
         return 0;
     } else if (command == "restore") {
         if (argc < 5) {
             std::cerr << "Error: 'restore' requires <file>, <version>, and <output> arguments.\n";
             return 1;
         }
-        std::cout << "Command 'restore' parsed successfully (pending Day 3).\n";
-        return 0;
+        return vault.restore(argv[2], argv[3], argv[4]) ? 0 : 1;
     } else if (command == "verify") {
         if (argc < 4) {
             std::cerr << "Error: 'verify' requires <file> and <version> arguments.\n";
