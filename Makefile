@@ -3,7 +3,7 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 BUILD_DIR = build
 
-.PHONY: all clean test test-chunker test-hasher
+.PHONY: all clean test test-chunker test-hasher test-manifest
 
 all: $(BUILD_DIR)/chunker.o $(BUILD_DIR)/hasher.o
 
@@ -24,7 +24,10 @@ test-hasher: tests/test_hasher.cpp src/hasher.cpp include/deltavault/hasher.hpp
 	$(CXX) $(CXXFLAGS) tests/test_hasher.cpp src/hasher.cpp -o test_hasher.exe
 	./test_hasher.exe
 
-test: test-chunker test-hasher
+test-manifest: tests/test_manifest.cpp src/manifest.cpp include/deltavault/manifest.hpp
+	$(CXX) $(CXXFLAGS) tests/test_manifest.cpp src/manifest.cpp -o test_manifest.exe
+	./test_manifest.exe
+test: test-chunker test-hasher test-manifest
 
 clean:
-	rm -rf $(BUILD_DIR) test_chunker.exe test_hasher.exe
+	rm -rf $(BUILD_DIR) test_chunker.exe test_hasher.exe test_manifest.exe
