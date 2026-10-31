@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <cstdint>
 
 namespace deltavault {
 
@@ -22,11 +23,15 @@ public:
     bool init();
     bool is_valid() const;
 
-    // Interface stubs for team integration (Days 2–5)
+    // Day 2: Add and List
     bool add(const std::filesystem::path& filepath);
     std::vector<std::string> list() const;
+
+    // Day 3: Versions and Restore
     std::vector<std::string> versions(const std::string& filename) const;
     bool restore(const std::string& filename, const std::string& version, const std::filesystem::path& output_path);
+
+    // Days 4-5: Interface stubs
     bool verify(const std::string& filename, const std::string& version);
     StatResult stats() const;
     bool gc();
@@ -39,6 +44,9 @@ private:
     std::filesystem::path vault_path_;
     std::filesystem::path objects_dir_;
     std::filesystem::path manifests_dir_;
+
+    std::uint64_t get_next_version_number(const std::string& filename) const;
+    static std::uint64_t parse_version_string(const std::string& version_str);
 };
 
 } // namespace deltavault
