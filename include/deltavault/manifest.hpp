@@ -34,7 +34,6 @@ Manifest build_manifest(
 class ManifestStore {
 public:
     explicit ManifestStore(const std::filesystem::path& vault_path);
-
     void save(const Manifest& manifest) const;
 
     Manifest load(
@@ -44,11 +43,7 @@ public:
 
 private:
     std::filesystem::path manifests_path_;
-
-    std::filesystem::path manifest_path(
-        const std::string& logical_filename,
-        std::uint64_t version
-    ) const;
+    std::filesystem::path manifest_path(const std::string& logical_filename, std::uint64_t version) const;
 };
 
 } // namespace deltavault
