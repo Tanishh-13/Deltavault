@@ -40,8 +40,8 @@ std::vector<Chunk> Chunker::split(const Chunk& data) const {
     std::uint64_t fingerprint = 0;
 
     // Aim for boundaries around 64 KiB.
-    const std::uint64_t BOUNDARY_MASK =
-    (1ULL << 10) - 1;
+   const std::uint64_t BOUNDARY_MASK =
+    (1ULL << 16) - 1;
 
     for (std::size_t i = 0; i < data.size(); ++i) {
         fingerprint =
