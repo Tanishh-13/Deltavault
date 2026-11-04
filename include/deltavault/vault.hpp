@@ -31,7 +31,7 @@ public:
     std::vector<std::string> versions(const std::string& filename) const;
     bool restore(const std::string& filename, const std::string& version, const std::filesystem::path& output_path);
 
-    // Days 4-5: Interface stubs
+    // Day 4 & 5: Verify, Stats, and Garbage Collection
     bool verify(const std::string& filename, const std::string& version);
     StatResult stats() const;
     bool gc();
