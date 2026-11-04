@@ -10,3 +10,4 @@ build/
 /.deltavault/
 tmp_*/
 *.pdf
+.vscode
